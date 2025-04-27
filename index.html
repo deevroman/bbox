@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>bbox</title>
+  <meta charset='utf-8'>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij48cmVjdCB4PSIxMiIgeT0iMTgiIHdpZHRoPSI0MCIgaGVpZ2h0PSIyNiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjRjQ0MzM2IiBzdHJva2Utd2lkdGg9IjYiIHJ4PSIyIiByeT0iNCIvPjwvc3ZnPgoK">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel='stylesheet' href='https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.css'/>
+  <script src="https://unpkg.com/maplibre-gl@4.1.1/dist/maplibre-gl.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body, #map {
+      height: 100%;
+    }
+
+    .maplibregl-ctrl-attrib-button {
+      display: none !important;
+    }
+
+    .maplibregl-ctrl-attrib {
+      background: transparent !important;
+      padding: unset !important;
+    }
+
+    .maplibregl-ctrl-bottom-right {
+      padding-right: 10px;
+    }
+
+    .maplibregl-ctrl-attrib-inner {
+      font-size: 0;
+    }
+
+    .better-attr {
+      font: 12px/20px Helvetica Neue,Arial,Helvetica,sans-serif;
+    }
+
+
+    .input-group {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1;
+      border-radius: 3px;
+      width: 90%;
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+<div id="map">
+  <input id="bbox-input" type="text" class="input-group" autocomplete='on' placeholder="Type the comma-separated coordinates and press Enter"
+         style="color: black">
+  <nav id="input-group" class="input-group"></nav>
+</div>
+<script>
+
+  const background_layers = [
+    {
+      'id': 'simple-tiles',
+      'type': 'raster',
+      'source': 'raster-tiles',
+      'paint': {
+        'raster-brightness-max': 0.8,
+      }
+    },
+  ];
+  const layers = [
+    ...background_layers,
+  ];
+  const style = {
+    'id': 'raster',
+    'version': 8,
+    'name': 'Raster tiles',
+    'center': [0, 0],
+    'zoom': 0,
+    'sources': {
+      'raster-tiles': {
+        'type': 'raster',
+        'tiles': [
+          'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+        ],
+        'tileSize': 256,
+        'minzoom': 0,
+        'maxzoom': 19
+      },
+    },
+    "layers": layers
+  };
+
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: !location.search.includes("vector") ? style : "https://raw.githubusercontent.com/pnorman/tilekiln-shortbread-demo/refs/heads/main/colorful.json",
+    antialias: true,
+    dragRotate: false,
+    touchPitch: false,
+    attributionControl: false,
+  });
+  if (!location.search.includes("vector")) {
+    map.addControl(new maplibregl.AttributionControl({
+      customAttribution: '<span class="better-attr"><a href="https://github.com/gravitystorm/openstreetmap-carto">OpenStreetMap Carto</a> × <a href="https://maplibre.org/" target="_blank">MapLibre</a></span>'
+    }));
+  } else {
+    map.addControl(new maplibregl.AttributionControl({
+      customAttribution: '<span class="better-attr"><a href="https://community.openstreetmap.org/t/vector-tiles-on-osmf-hardware/121501">OpenStreetMap Vector</a> × <a href="https://maplibre.org/" target="_blank">MapLibre</a></span>'
+    }));
+  }
+  const bboxes = {
+    "type": "geojson",
+    "data": {
+      'type': 'FeatureCollection',
+      'features': []
+    }
+  };
+  map.on('load', async () => {
+      map.addSource("bboxes", {
+        "type": "geojson",
+        "data": {
+          'type': 'FeatureCollection',
+          'features': []
+        }
+      });
+      document.getElementById("bbox-input").addEventListener('keyup', (e) => {
+        if (e.key !== "Enter") return
+        const coordinates = e.target.value.replaceAll(" ", "").match(/(-?\d+\.\d+,){3}(-?\d+\.\d+)/)[0]?.split(",")?.map(i => parseFloat(i))
+        if (!coordinates || coordinates.length !== 4) {
+          e.target.style.color = 'red'
+          return
+        } else {
+          e.target.style.color = 'default'
+        }
+        bboxes["data"]["features"].push({
+          'type': 'Feature',
+          'geometry': {
+            'type': 'Polygon',
+            'coordinates': [[
+              [coordinates[0], coordinates[1]],
+              [coordinates[2], coordinates[1]],
+              [coordinates[2], coordinates[3]],
+              [coordinates[0], coordinates[3]],
+              [coordinates[0], coordinates[1]],
+            ]]
+          },
+          'properties': {
+            'color': "hsl(" + Math.random() * 360 + ", 100%, 75%)",
+            'bbox_string': e.target.value,
+          }
+        })
+
+        map.removeLayer('bboxes')
+        map.removeSource('bboxes')
+        map.addSource('bboxes', bboxes)
+        map.addLayer({
+          'id': 'bboxes',
+          'type': 'line',
+          'source': 'bboxes',
+          'paint': {
+            'line-color': ['get', 'color'],
+            'line-width': 5
+          }
+        });
+        map.fitBounds(coordinates)
+      });
+
+      map.addLayer({
+        'id': 'bboxes',
+        'type': 'line',
+        'source': 'bboxes',
+        'paint': {},
+      });
+
+      const popup = new maplibregl.Popup({
+          closeButton: false,
+          closeOnClick: true,
+      });
+
+      map.on('click', 'bboxes', (e) => {
+        popup
+            .setLngLat(e.lngLat)
+            .setText(e.features[0].properties['bbox_string'])
+            .addTo(map);
+      });
+
+      map.on('mouseenter', 'bboxes', () => {
+          map.getCanvasContainer().style.cursor = 'pointer';
+      });
+
+      map.on('mouseleave', 'bboxes', () => {
+          map.getCanvasContainer().style.cursor = '';
+      });
+
+    }
+  );
+</script>
+</body>
+</html>
