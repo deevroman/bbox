@@ -47,15 +47,30 @@
       border-radius: 3px;
       width: 90%;
       color: #fff;
+      display: flex;
+      margin-left: 4%;
+      margin-right: 4%;
+    }
+
+    .latlon-btn {
+      z-index: 1;
+      border-radius: 3px;
+      color: #000;
+      cursor: pointer;
+      user-select: none;
     }
   </style>
 </head>
 <body>
 <div id="map">
-  <input id="bbox-input" type="text" class="input-group" autocomplete='on' autofocus
-         placeholder="Type the comma-separated coordinates and press Enter"
-         style="color: black">
-  <nav id="input-group" class="input-group"></nav>
+  <span id="bar" class="input-group">
+    <button class="latlon-btn"
+           style="min-width: fit-content; margin-right: 5px"
+           onclick="this.textContent === 'Lat Lon' ? (this.textContent = 'Lon Lat') : (this.textContent = 'Lat Lon')">Lat Lon</button>
+    <input id="bbox-input" type="text" autocomplete='on' autofocus
+           placeholder="Type the comma-separated coordinates and press Enter"
+           style="color: black; width: 95%">
+  </span>
 </div>
 <script>
 
@@ -126,12 +141,26 @@
       });
       document.getElementById("bbox-input").addEventListener('keyup', (e) => {
         if (e.key !== "Enter") return
-        const coordinates = e.target.value.replaceAll(" ", "").match(/(-?\d+\.\d+,){3}(-?\d+\.\d+)/)[0]?.split(",")?.map(i => parseFloat(i))
+        let coordinates = e.target.value.replaceAll(" ", "").match(/(-?\d+\.\d+,){3}(-?\d+\.\d+)/)?.[0]?.split?.(",")?.map?.(i => parseFloat(i))
         if (!coordinates || coordinates.length !== 4) {
-          e.target.style.color = 'red'
-          return
+          if (e.target.value.trim().split(" ").length === 4) {
+            coordinates = e.target.value.trim().split(" ").map(i => parseFloat(i))
+            e.target.style.color = 'default'
+          } else {
+            e.target.style.color = 'red'
+            return
+          }
         } else {
           e.target.style.color = 'default'
+        }
+        if (document.querySelector(".latlon-btn").textContent === 'Lon Lat') {
+          let tmp = coordinates[0];
+          coordinates[0] = coordinates[1];
+          coordinates[1] = tmp;
+
+          tmp = coordinates[2];
+          coordinates[2] = coordinates[3];
+          coordinates[3] = tmp;
         }
         bboxes["data"]["features"].push({
           'type': 'Feature',
